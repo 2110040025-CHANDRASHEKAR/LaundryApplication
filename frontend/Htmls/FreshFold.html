@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="laundryApp">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>FreshFold Laundry</title>
+  <link rel="stylesheet" href="../Styles/FreshFoldStyle.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.8.3/angular.min.js"></script>
+</head>
+
+<body ng-controller="FreshFoldMainController as $ctrl">
+
+  <!-- Toast -->
+  <div class="toast" ng-class="{show: toast.show}">{{toast.message}}</div>
+
+  <!-- ── AUTH SCREEN ── -->
+  <div class="auth-wrap" ng-if="!currentUser">
+    <div class="auth-card">
+      <div class="auth-logo">FreshFold</div>
+      <div class="auth-sub">Laundry, simplified</div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab" ng-class="{active: authMode==='login'}" ng-click="switchTab('login')">Login</button>
+        <button class="auth-tab" ng-class="{active: authMode==='register'}"
+          ng-click="switchTab('register')">Register</button>
+      </div>
+
+      <div class="alert-error" ng-if="authError">{{authError}}</div>
+      <div class="success-banner" ng-if="registerSuccess">
+        <span class="success-icon">✓</span>
+        <span>Account created! Please login.</span>
+      </div>
+
+      <!-- Register -->
+      <div ng-if="authMode==='register'">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input class="form-input" type="text" ng-model="authForm.name" placeholder="Your full name" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" ng-class="{'input-error': authEmailError}" type="email" ng-model="authForm.email"
+            placeholder="you@email.com" ng-change="liveValidateEmail()" />
+          <div class="field-error" ng-if="authEmailError">{{authEmailError}}</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" type="password" ng-model="authForm.password" placeholder="Min 6 characters" />
+        </div>
+        <button class="btn btn-primary btn-full" ng-click="register()" ng-disabled="authLoading">
+          {{authLoading ? 'Creating account...' : 'Create Account'}}
+        </button>
+        <p class="auth-switch">Already have an account? <a ng-click="switchTab('login')">Login</a></p>
+      </div>
+
+      <!-- Login -->
+      <div ng-if="authMode==='login'">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" ng-class="{'input-error': authEmailError}" type="email" ng-model="authForm.email"
+            placeholder="you@email.com" ng-change="liveValidateEmail()" />
+          <div class="field-error" ng-if="authEmailError">{{authEmailError}}</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" type="password" ng-model="authForm.password" placeholder="Your password"
+            ng-keyup="$event.keyCode===13 && login()" />
+        </div>
+        <button class="btn btn-primary btn-full" ng-click="login()" ng-disabled="authLoading">
+          {{authLoading ? 'Logging in...' : 'Login'}}
+        </button>
+        <p class="auth-switch">New user? <a ng-click="switchTab('register')">Create account</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MAIN APP ── -->
+  <div ng-if="currentUser">
+
+    <nav class="nav">
+      <div class="logo">FreshFold</div>
+      <div class="nav-links">
+        <button class="nav-btn" ng-class="{active: page==='home'}" ng-click="goTo('home')">Home</button>
+        <button class="nav-btn" ng-class="{active: page==='book'}" ng-click="goTo('book')"
+          ng-if="currentUser.role==='user'">Book</button>
+
+        <button class="nav-btn" ng-class="{active: page==='orders'}" ng-click="goTo('orders')">Orders</button>
+        <div class="nav-user">
+          <span>{{currentUser.name}}</span>
+          <span class="role-badge"
+            ng-class="currentUser.role==='admin' ? 'role-admin' : 'role-user'">{{currentUser.role}}</span>
+          <button class="btn-logout" ng-click="logout()">Logout</button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- HOME -->
+    <div ng-if="page==='home'">
+      <div class="hero">
+        <h1>Laundry, <em>simplified</em></h1>
+        <p>Professional cleaning delivered to your door</p>
+      </div>
+      <div class="home-content">
+        <div class="quick-grid">
+          <div class="card quick-card" ng-click="goTo('book')" ng-if="currentUser.role==='user'">
+            <div class="quick-title">Book a Service</div>
+            <div class="quick-sub">Schedule a pickup</div>
+          </div>
+
+          <div class="card quick-card" ng-click="goTo('orders')">
+            <div class="quick-title">{{currentUser.role==='admin' ? 'All Orders' : 'My Orders'}}</div>
+            <div class="quick-sub">{{currentUser.role==='admin' ? 'Manage all orders' : 'View history'}}</div>
+          </div>
+        </div>
+
+        <!-- Services list for user (no icons) -->
+        <div class="card" ng-if="currentUser.role==='user'">
+          <div class="card-label">Our Services</div>
+          <div class="services-list">
+            <div class="service-list-item" ng-repeat="s in services">
+              <div class="svc-list-name">{{s.name}}</div>
+              <div class="svc-list-price">₹{{s.price}}/kg</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin welcome -->
+        <div class="card" ng-if="currentUser.role==='admin'">
+          <div class="card-heading">Welcome, {{currentUser.name}}</div>
+          <div class="card-sub">You are logged in as Admin. Go to Orders to manage and update statuses.</div>
+          <button class="btn btn-primary" style="margin-top:1rem" ng-click="goTo('orders')">View All Orders →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOOK -->
+    <div class="page" ng-class="{active: page==='book'}">
+      <div class="step-indicator">
+        <span class="step-pill" ng-class="!paymentStep ? 'step-active' : 'step-done'">1 Details</span>
+        <span class="step-arrow">→</span>
+        <span class="step-pill" ng-class="paymentStep ? 'step-active' : 'step-pending'">2 Payment</span>
+        <span class="step-arrow">→</span>
+        <span class="step-pill" ng-class="bookingSuccess ? 'step-active' : 'step-pending'">3 Confirm</span>
+      </div>
+
+      <div class="success-banner large" ng-if="bookingSuccess">
+        <span class="success-icon">✓</span>
+        <div>
+          <div class="success-title">Order placed! ID: <strong>#{{lastOrderId}}</strong></div>
+          <div class="success-sub">Payment: {{lastPaymentMethod}} — save this ID to track your order</div>
+        </div>
+      </div>
+
+      <!-- Step 1: Details -->
+      <div ng-if="!paymentStep && !bookingSuccess">
+        <h2 class="section-title">Book a Service</h2>
+        <div class="card">
+          <div class="card-label">Select service</div>
+          <div class="services-grid">
+            <div class="service-card" ng-repeat="s in services" ng-class="{selected: booking.service===s.name}"
+              ng-click="booking.service=s.name">
+              <div class="service-name">{{s.name}}</div>
+              <div class="service-price">₹{{s.price}}/kg</div>
+            </div>
+          </div>
+          <div class="field-error" ng-if="errors.service">{{errors.service}}</div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Your Name</label>
+              <input class="form-input" ng-class="{'input-error': errors.name}" type="text" ng-model="booking.name"
+                placeholder="Full name" />
+              <div class="field-error" ng-if="errors.name">{{errors.name}}</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Phone</label>
+              <input class="form-input" ng-class="{'input-error': errors.phone}" type="tel" ng-model="booking.phone"
+                placeholder="9876543210" ng-change="liveValidatePhone()" />
+              <div class="field-error" ng-if="errors.phone">{{errors.phone}}</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Pickup Address</label>
+            <input class="form-input" ng-class="{'input-error': errors.address}" type="text" ng-model="booking.address"
+              placeholder="House no, Street, Area" />
+            <div class="field-error" ng-if="errors.address">{{errors.address}}</div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Pickup Date</label>
+              <input class="form-input" type="date" ng-model="booking.date" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Weight (kg)</label>
+              <div class="counter">
+                <button class="counter-btn" ng-click="booking.weight=booking.weight>1?booking.weight-1:1">−</button>
+                <span class="counter-val">{{booking.weight}}</span>
+                <button class="counter-btn" ng-click="booking.weight=booking.weight+1">+</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Special Instructions</label>
+            <textarea class="form-input" ng-model="booking.notes" placeholder="Fabric care, allergies, etc."
+              rows="2"></textarea>
+          </div>
+
+          <div class="summary-box" ng-if="booking.service">
+            <div class="summary-row"><span>Service</span><span>{{booking.service}}</span></div>
+            <div class="summary-row"><span>Weight</span><span>{{booking.weight}} kg</span></div>
+            <div class="summary-row"><span>Rate</span><span>₹{{getServicePrice()}}/kg</span></div>
+            <div class="summary-row summary-total"><span>Total</span><span>₹{{getTotal()}}</span></div>
+          </div>
+
+          <button class="btn btn-primary btn-full" ng-click="proceedToPayment()">Continue to Payment →</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Payment -->
+      <div ng-if="paymentStep && !bookingSuccess">
+        <button class="back-btn" ng-click="paymentStep=false">← Back to Details</button>
+        <h2 class="section-title">Choose Payment</h2>
+        <div class="card">
+          <div class="summary-box" style="margin-bottom:1.5rem;margin-top:0">
+            <div class="summary-row"><span>{{booking.service}}</span><span>{{booking.weight}} kg</span></div>
+            <div class="summary-row summary-total"><span>Amount to pay</span><span>₹{{getTotal()}}</span></div>
+          </div>
+          <div class="card-label">Payment method</div>
+          <div class="payment-methods">
+            <div class="pay-option" ng-class="{selected: paymentMethod==='COD'}" ng-click="paymentMethod='COD'">
+              <div class="pay-name">Cash on Delivery</div>
+              <div class="pay-sub">Pay when collected</div>
+            </div>
+          </div>
+          <div class="cod-info" ng-if="paymentMethod==='COD'">
+            Pay ₹{{getTotal()}} when our agent picks up your clothes
+          </div>
+          <div class="alert-error" ng-if="bookError">{{bookError}}</div>
+          <button class="btn btn-primary btn-full" ng-click="placeOrder()" ng-disabled="submitting">
+            {{submitting ? 'Placing Order...' : '✓ Confirm Order — Pay on Delivery'}}
+          </button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ORDERS -->
+    <div class="page" ng-class="{active: page==='orders'}">
+      <div class="orders-header">
+        <h2 class="section-title" style="margin:0">{{currentUser.role==='admin' ? 'All Orders' : 'My Orders'}}</h2>
+        <span class="orders-count">{{orders.length}} order(s)</span>
+      </div>
+      <div class="admin-info" ng-if="currentUser.role==='admin'">
+        Admin view — change order status using the dropdown on each card
+      </div>
+      <div class="empty-state" ng-if="orders.length===0">
+        <div class="empty-text">No orders yet.
+          <a ng-click="goTo('book')" class="link" ng-if="currentUser.role==='user'">Book one now!</a>
+        </div>
+      </div>
+      <div class="order-card" ng-repeat="o in orders">
+        <div class="order-header">
+          <div>
+            <div class="order-id">#{{o.id}}</div>
+            <div class="order-name">{{o.name}}</div>
+          </div>
+          <span class="status-badge" ng-class="getStatusClass(o.status)">{{o.status}}</span>
+        </div>
+        <div class="order-meta">
+          <span>{{o.service}}</span>
+          <span>{{o.weight}} kg</span>
+          <span>₹{{o.total}}</span>
+          <span>{{o.payment_method}}</span>
+          <span>{{o.date}}</span>
+        </div>
+
+        <!-- Inline Track Progress (user) -->
+        <div ng-if="currentUser.role==='user'" style="margin-top:10px">
+          <button class="btn-track-toggle" ng-click="o._showTrack = !o._showTrack">
+            {{o._showTrack ? '▲ Hide Progress' : '▼ Track Order'}}
+          </button>
+          <div class="inline-track" ng-if="o._showTrack">
+            <div class="progress-bar">
+              <div class="progress-inner">
+                <div class="progress-line"></div>
+                <div class="progress-fill" ng-style="{width: getProgress(o.status) + '%'}"></div>
+                <div class="progress-steps">
+                  <div class="progress-step" ng-repeat="step in statusSteps">
+                    <div class="step-dot" ng-class="getStepClass(step, o.status)">
+                      <span ng-if="isStepDone(step, o.status)">✓</span>
+                      <span ng-if="!isStepDone(step, o.status)">{{$index+1}}</span>
+                    </div>
+                    <div class="step-label" ng-class="getStepClass(step, o.status)">{{step}}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="order-notes" ng-if="o.notes">📝 {{o.notes}}</div>
+          </div>
+        </div>
+
+        <!-- Admin controls -->
+        <div ng-if="currentUser.role==='admin'" class="admin-controls">
+          <div class="admin-label">Update Status</div>
+          <div class="order-actions">
+            <select class="form-input status-select" ng-model="o.status" ng-change="updateStatus(o)">
+              <option ng-repeat="s in statusSteps" value="{{s}}">{{s}}</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Load order: Module → Config → Service → Controller -->
+  <script src="../Module/FreshFoldModule.js"></script>
+  <script src="../Services/FreshFoldConfigService.js"></script>
+  <script src="../Services/FreshFoldService.js"></script>
+  <script src="../Controllers/FreshFoldMainController.js"></script>
+</body>
+
+</html>

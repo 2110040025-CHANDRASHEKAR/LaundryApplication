@@ -1,0 +1,390 @@
+<!--
+  =============================================
+  LOGIN METHOD 1 — localStorage
+  =============================================
+  HOW IT WORKS:
+  - After login, save user object in localStorage
+  - localStorage persists even after browser closes
+  - On every page load, check localStorage for user
+  - Logout = clear localStorage
+
+  PROS:  Simplest to implement, user stays logged in
+  CONS:  Anyone with access to browser can read it
+         Not ideal for sensitive apps (ok for learning)
+
+  INTERVIEW EXPLANATION:
+  "I stored the logged-in user's data in localStorage
+   so the session persists across page refreshes.
+   On app load I check if a user exists in localStorage
+   and redirect accordingly."
+  =============================================
+-->
+<!DOCTYPE html>
+<html lang="en" ng-app="laundryApp">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>FreshFold — Method 1: localStorage</title>
+  <link rel="stylesheet" href="../Styles/style.css" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap"
+    rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.8.3/angular.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.8.3/angular-route.min.js"></script>
+  <style>
+    .auth-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg)
+    }
+
+    .auth-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 420px
+    }
+
+    .auth-logo {
+      font-family: 'DM Serif Display', serif;
+      font-size: 26px;
+      text-align: center;
+      margin-bottom: .25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px
+    }
+
+    .auth-logo-dot {
+      width: 10px;
+      height: 10px;
+      background: var(--accent);
+      border-radius: 50%
+    }
+
+    .auth-sub {
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 2rem
+    }
+
+    .auth-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden
+    }
+
+    .auth-tab {
+      flex: 1;
+      padding: 9px;
+      text-align: center;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--muted);
+      background: none;
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      transition: all .2s
+    }
+
+    .auth-tab.active {
+      background: var(--accent);
+      color: #fff
+    }
+
+    .method-badge {
+      background: var(--amber-light);
+      color: var(--amber);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: 6px;
+      margin-bottom: 1.5rem;
+      text-align: center
+    }
+
+    .admin-hint {
+      background: var(--accent-light);
+      color: var(--accent-dark);
+      font-size: 12px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 1rem;
+      text-align: center
+    }
+  </style>
+</head>
+
+<body ng-controller="AuthCtrl">
+
+  <!-- ── AUTH SCREEN (shown when not logged in) ── -->
+  <div class="auth-wrap" ng-if="!currentUser">
+    <div class="auth-card">
+      <div class="auth-logo"><span class="auth-logo-dot"></span>FreshFold</div>
+      <div class="auth-sub">Laundry, simplified</div>
+
+      <div class="method-badge">Method 1 — localStorage Session</div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab" ng-class="{active: authMode==='login'}" ng-click="authMode='login'">Login</button>
+        <button class="auth-tab" ng-class="{active: authMode==='register'}"
+          ng-click="authMode='register'">Register</button>
+      </div>
+
+      <!-- <div class="admin-hint" ng-if="authMode==='login'">
+        Admin: admin@freshfold.com / admin123
+      </div> -->
+
+      <div class="alert-error" ng-if="authError">{{authError}}</div>
+
+      <!-- Register Form -->
+      <div ng-if="authMode==='register'">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input class="form-input" type="text" ng-model="authForm.name" placeholder="Your full name" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" ng-model="authForm.email" placeholder="you@email.com" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" type="password" ng-model="authForm.password" placeholder="Min 6 characters" />
+        </div>
+        <button class="btn btn-primary btn-full" ng-click="register()" ng-disabled="authLoading">
+          {{authLoading ? 'Creating account...' : 'Create Account'}}
+        </button>
+      </div>
+
+      <!-- Login Form -->
+      <div ng-if="authMode==='login'">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" ng-model="authForm.email" placeholder="you@email.com" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" type="password" ng-model="authForm.password" placeholder="Your password"
+            ng-keyup="$event.keyCode===13 && login()" />
+        </div>
+        <button class="btn btn-primary btn-full" ng-click="login()" ng-disabled="authLoading">
+          {{authLoading ? 'Logging in...' : 'Login'}}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MAIN APP (shown when logged in) ── -->
+  <div ng-if="currentUser">
+    <nav class="nav">
+      <div class="logo"><span class="logo-dot"></span>FreshFold</div>
+      <div class="nav-links">
+        <button class="nav-btn" ng-class="{active:page==='home'}" ng-click="goTo('home')">Home</button>
+        <button class="nav-btn" ng-class="{active:page==='book'}" ng-click="goTo('book')"
+          ng-if="currentUser.role==='user'">Book</button>
+        <button class="nav-btn" ng-class="{active:page==='track'}" ng-click="goTo('track')">Track</button>
+        <button class="nav-btn" ng-class="{active:page==='orders'}" ng-click="goTo('orders')">Orders</button>
+        <span style="padding:6px 12px;font-size:13px;color:var(--muted)">Hi, {{currentUser.name}}</span>
+        <span
+          style="padding:4px 10px;border-radius:20px;font-size:11px;font-weight:500;background:var(--accent-light);color:var(--accent-dark)"
+          ng-if="currentUser.role==='admin'">Admin</span>
+        <button class="nav-btn" ng-click="logout()" style="color:var(--danger)">Logout</button>
+      </div>
+    </nav>
+    <div ng-include="'../partials/app-pages.html'"></div>
+  </div>
+
+  <script>
+    var API_BASE = 'http://localhost:5000/api';
+
+    angular.module('laundryApp', [])
+      .controller('AuthCtrl', function ($scope, $http) {
+
+        // ── KEY CONCEPT: localStorage ──────────────
+        // localStorage stores key-value pairs in browser
+        // Persists even when browser is closed and reopened
+        // JSON.parse converts stored string back to object
+
+        $scope.authMode = 'login';
+        $scope.authForm = {};
+        $scope.authError = null;
+        $scope.authLoading = false;
+        $scope.page = 'home';
+
+        // On page load — check if user already logged in
+        // This is the core of localStorage session management
+        var stored = localStorage.getItem('freshfold_user'); // returns string or null
+        $scope.currentUser = stored ? JSON.parse(stored) : null;
+
+        // ── REGISTER ──────────────────────────────
+        $scope.register = function () {
+          $scope.authError = null;
+          if (!$scope.authForm.name || !$scope.authForm.email || !$scope.authForm.password) {
+            $scope.authError = 'All fields are required.'; return;
+          }
+          $scope.authLoading = true;
+
+          $http.post(API_BASE + '/auth/register', $scope.authForm)
+            .then(function () {
+              $scope.authMode = 'login';   // switch to login tab
+              $scope.authForm = {};
+              $scope.authError = null;
+              alert('Account created! Please login.');
+            })
+            .catch(function (err) {
+              $scope.authError = err.data.error || 'Registration failed.';
+            })
+            .finally(function () { $scope.authLoading = false; });
+        };
+
+        // ── LOGIN ─────────────────────────────────
+        $scope.login = function () {
+          $scope.authError = null;
+          $scope.authLoading = true;
+
+          $http.post(API_BASE + '/auth/login', $scope.authForm)
+            .then(function (res) {
+              // METHOD 1 KEY STEP: Save user object to localStorage
+              // JSON.stringify converts object → string (localStorage only stores strings)
+              localStorage.setItem('freshfold_user', JSON.stringify(res.data.user));
+
+              $scope.currentUser = res.data.user;
+              $scope.authForm = {};
+
+              // Redirect based on role
+              $scope.page = $scope.currentUser.role === 'admin' ? 'orders' : 'home';
+              if ($scope.page === 'orders') $scope.loadOrders();
+            })
+            .catch(function (err) {
+              $scope.authError = err.data.error || 'Login failed.';
+            })
+            .finally(function () { $scope.authLoading = false; });
+        };
+
+        // ── LOGOUT ────────────────────────────────
+        $scope.logout = function () {
+          // METHOD 1 KEY STEP: Remove from localStorage
+          localStorage.removeItem('freshfold_user');
+          $scope.currentUser = null;
+          $scope.authForm = {};
+          $scope.page = 'home';
+        };
+
+        // ── NAV + APP LOGIC (same as before) ──────
+        $scope.goTo = function (p) {
+          $scope.page = p;
+          if (p === 'book') { $scope.bookingSuccess = false; $scope.bookError = null; $scope.paymentStep = false; }
+          if (p === 'track') { $scope.trackedOrder = null; $scope.trackError = null; }
+          if (p === 'orders') { $scope.loadOrders(); }
+        };
+
+        // ── include remaining shared app logic ────
+        // (services, booking, tracking, orders — same as main app.js)
+        $scope.statusSteps = ['Received', 'Processing', 'Ready', 'Delivered'];
+        $scope.services = [
+          { name: 'Wash & Fold', icon: '🧺', price: 40 }, { name: 'Dry Clean', icon: '👔', price: 120 },
+          { name: 'Iron Only', icon: '🫧', price: 20 }, { name: 'Wash & Iron', icon: '✨', price: 60 },
+          { name: 'Shoe Cleaning', icon: '👟', price: 150 }, { name: 'Curtains', icon: '🪟', price: 80 },
+        ];
+        $scope.booking = { service: '', name: '', phone: '', address: '', date: '', weight: 3, notes: '' };
+        $scope.paymentMethod = 'COD';
+        $scope.paymentStep = false;
+        $scope.bookingSuccess = false;
+        $scope.bookError = null;
+        $scope.trackedOrder = null;
+        $scope.trackError = null;
+        $scope.trackId = '';
+        $scope.orders = [];
+
+        $scope.getServicePrice = function () {
+          var s = $scope.services.find(function (x) { return x.name === $scope.booking.service; });
+          return s ? s.price : 0;
+        };
+        $scope.getTotal = function () { return $scope.booking.weight * $scope.getServicePrice(); };
+        $scope.getStatusClass = function (s) {
+          return { Received: 'status-received', Processing: 'status-processing', Ready: 'status-ready', Delivered: 'status-delivered' }[s] || 'status-received';
+        };
+        $scope.getProgress = function (s) {
+          return { Received: 8, Processing: 40, Ready: 72, Delivered: 100 }[s] || 0;
+        };
+        $scope.isStepDone = function (step, status) { return $scope.statusSteps.indexOf(step) <= $scope.statusSteps.indexOf(status); };
+        $scope.getStepClass = function (step, status) {
+          var i = $scope.statusSteps.indexOf(step), c = $scope.statusSteps.indexOf(status);
+          if (i < c) return 'done'; if (i === c) return 'active'; return '';
+        };
+
+        $scope.proceedToPayment = function () {
+          $scope.bookError = null;
+          if (!$scope.booking.service) { $scope.bookError = 'Please select a service.'; return; }
+          if (!$scope.booking.name || !$scope.booking.name.trim()) { $scope.bookError = 'Please enter your name.'; return; }
+          if (!$scope.booking.phone || !$scope.booking.phone.trim()) { $scope.bookError = 'Please enter phone.'; return; }
+          if (!$scope.booking.address || !$scope.booking.address.trim()) { $scope.bookError = 'Please enter address.'; return; }
+          $scope.paymentStep = true;
+        };
+
+        $scope.placeOrder = function () {
+          $scope.submitting = true;
+          var orderData = {
+            user_id: $scope.currentUser.id,
+            name: $scope.booking.name, phone: $scope.booking.phone,
+            address: $scope.booking.address, service: $scope.booking.service,
+            weight: $scope.booking.weight, date: $scope.booking.date || 'TBD',
+            notes: $scope.booking.notes, total: $scope.getTotal(),
+            payment_method: $scope.paymentMethod,
+          };
+          $http.post(API_BASE + '/orders', orderData)
+            .then(function (res) {
+              $scope.lastOrderId = res.data.orderId;
+              $scope.bookingSuccess = true;
+              $scope.paymentStep = false;
+              $scope.submitting = false;
+              $scope.booking = { service: '', name: '', phone: '', address: '', date: '', weight: 3, notes: '' };
+            })
+            .catch(function (err) {
+              $scope.bookError = (err.data && err.data.error) || 'Something went wrong.';
+              $scope.submitting = false;
+              $scope.paymentStep = false;
+            });
+        };
+
+        $scope.trackOrder = function () {
+          $scope.trackError = null; $scope.trackedOrder = null;
+          var id = ($scope.trackId || '').trim();
+          if (!id) { $scope.trackError = 'Please enter an Order ID.'; return; }
+          $http.get(API_BASE + '/orders/' + id)
+            .then(function (res) { $scope.trackedOrder = res.data; })
+            .catch(function (err) { $scope.trackError = err.status === 404 ? 'Order #' + id + ' not found.' : 'Server error.'; });
+        };
+
+        $scope.loadOrders = function () {
+          var url = API_BASE + '/orders';
+          // Users see only their orders; admin sees all
+          if ($scope.currentUser && $scope.currentUser.role === 'user') {
+            url += '?user_id=' + $scope.currentUser.id;
+          }
+          $http.get(url).then(function (res) { $scope.orders = res.data; });
+        };
+
+        $scope.updateStatus = function (order) {
+          $http.put(API_BASE + '/orders/' + order.id + '/status', { status: order.status });
+        };
+
+        $scope.quickTrack = function (id) {
+          $scope.trackId = String(id); $scope.goTo('track'); $scope.trackOrder();
+        };
+      });
+  </script>
+</body>
+
+</html>
